@@ -5,6 +5,7 @@ from mopidy import backend
 from mopidy_bandcamp import logger
 from mopidy_bandcamp.bandcamp import BandcampClient
 from mopidy_bandcamp.library import BandcampLibraryProvider
+from mopidy_bandcamp.playlists import BandcampPlaylistsProvider
 
 
 class BandcampBackend(pykka.ThreadingActor, backend.Backend):
@@ -19,6 +20,9 @@ class BandcampBackend(pykka.ThreadingActor, backend.Backend):
         self.bandcamp = BandcampClient(config)
         self.library = BandcampLibraryProvider(backend=self)
         self.playback = BandcampPlaybackProvider(audio=audio, backend=self)
+        # Expose the fan Collection/Wishlist through
+        # Mopidy's playlists API so playlist-oriented clients see them.
+        self.playlists = BandcampPlaylistsProvider(backend=self)
 
 
 class BandcampPlaybackProvider(backend.PlaybackProvider):

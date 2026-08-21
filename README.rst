@@ -127,6 +127,10 @@ example:
 - :code:`discover_genres` - List of bandcamp's genres to discover.  You'll only want to edit this to remove unwanted genres.
 - :code:`discover_pages` - Number of pages to load in the browse discover sections.  Default: 1
 - :code:`image_sizes` - a list of ids for image sizes to return to mopidy for album art.  Default: 10, 5, 2 (1200x1200, 700x700, 350x350)
+- :code:`cache_file` - Path to a JSON file that caches collection pages, album details and page scrapes between restarts.  Empty turns the cache off.  Default: empty
+- :code:`cache_ttl` - Seconds a cached collection page or album stays fresh.  Page scrapes are kept for at most 10 minutes, because they contain time-limited stream URLs.  Default: 3600
+
+When :code:`identity` is set, your Collection and Wishlist also appear as read-only playlists, "Bandcamp Collection" and "Bandcamp Wishlist".  Albums are expanded to their tracks, up to 40 albums and 400 tracks per playlist.
 
 
 Bandcamp image size ids:

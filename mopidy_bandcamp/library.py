@@ -170,6 +170,22 @@ class BandcampLibraryProvider(backend.LibraryProvider):
                             )
                         else:
                             ret[uri].append(Image(uri=img + f"_{s}.jpg"))
+            elif component[1] == "playlist":
+                # Collection/Wishlist playlist tiles get the
+                # first collection item's real artwork (disk-cached fetch)
+                # instead of a generated placeholder. No art -> no images,
+                # so clients fall back to their own placeholder.
+                art = self.backend.playlists.playlist_art(uri)
+                if art:
+                    img = f"https://f4.bcbits.com/img/{art}"
+                    for s in self.backend.image_sizes:
+                        if s in self.backend.bandcamp.IMAGE_SIZE:
+                            d = self.backend.bandcamp.IMAGE_SIZE[s]
+                            ret[uri].append(
+                                Image(uri=img + f"_{s}.jpg", width=d[0], height=d[1])
+                            )
+                        else:
+                            ret[uri].append(Image(uri=img + f"_{s}.jpg"))
             else:
                 name = ""
                 if len(component) == 3:

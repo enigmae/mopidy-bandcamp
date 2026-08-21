@@ -26,6 +26,9 @@ class Extension(ext.Extension):
         schema["discover_tags"] = config.List(optional=True)
         schema["image_sizes"] = config.List(optional=True)
         schema["identity"] = config.String(optional=True)
+        # Optional disk cache for collection/album/scrape data.
+        schema["cache_file"] = config.String(optional=True)
+        schema["cache_ttl"] = config.Integer(optional=True)
         return schema
 
     def setup(self, registry):

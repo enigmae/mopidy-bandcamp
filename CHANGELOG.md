@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+Unreleased
+----------
+
+- Collection and Wishlist are available as read-only playlists when an identity is set.
+- Playlists get artwork from the first item in the collection.
+- Optional disk cache (`cache_file`, `cache_ttl`) for collection pages, album details and page scrapes.
+
 v1.1.5
 ------
 

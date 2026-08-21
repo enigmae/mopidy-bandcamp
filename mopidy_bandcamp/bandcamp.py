@@ -1,5 +1,6 @@
 import json
 import mopidy_bandcamp
+import os
 import re
 import requests
 
@@ -50,6 +51,64 @@ class BandcampClient:
         self.identity = config["bandcamp"]["identity"]
         self.collection_items = config["bandcamp"]["collection_items"]
         self.fan_id = None
+        # Optional disk cache for collection pages / album details / page
+        # scrapes, so repeated collection listing doesn't re-scrape Bandcamp
+        # every time. Invalidated when the identity (account) changes.
+        self.cache_file = config["bandcamp"].get("cache_file") or None
+        self.cache_ttl = config["bandcamp"].get("cache_ttl") or 3600
+        self._cache = {}
+        self._cache_writes = 0
+        self._load_cache()
+
+    def _identity_tag(self):
+        import hashlib
+
+        return hashlib.md5((self.identity or "").encode()).hexdigest()[:12]
+
+    def _load_cache(self):
+        if not self.cache_file:
+            return
+        try:
+            with open(self.cache_file) as f:
+                data = json.load(f)
+            if data.get("identity") == self._identity_tag():
+                self._cache = data.get("entries", {})
+        except (OSError, ValueError):
+            self._cache = {}
+
+    def _save_cache(self):
+        if not self.cache_file:
+            return
+        try:
+            now = time()
+            self._cache = {
+                k: v
+                for k, v in self._cache.items()
+                if now - v["t"] < self.cache_ttl
+            }
+            tmp = self.cache_file + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(
+                    {"identity": self._identity_tag(), "entries": self._cache}, f
+                )
+            os.replace(tmp, self.cache_file)
+        except OSError:
+            pass
+
+    def _cache_get(self, key, ttl=None):
+        entry = self._cache.get(key)
+        if entry is not None and time() - entry["t"] < (ttl or self.cache_ttl):
+            return entry["v"]
+        return None
+
+    def _cache_put(self, key, value):
+        if not self.cache_file:
+            return
+        self._cache[key] = {"t": time(), "v": value}
+        self._cache_writes += 1
+        # Throttle disk writes: flush every few puts, not on each one.
+        if self._cache_writes % 5 == 1:
+            self._save_cache()
 
     def _get(self, *args, **kwargs):
         headers = {"User-Agent": self.ua_str}
@@ -69,7 +128,17 @@ class BandcampClient:
             raise RuntimeError(js["error_message"])
         return js
 
+    # Scraped pages embed time-limited stream URLs, so they only get a
+    # SHORT cache — long enough to absorb the double-scrape of a playlist
+    # expansion followed by playback, short enough to never serve a dead
+    # stream URL.
+    SCRAPE_CACHE_TTL = 600
+
     def scrape(self, uri):
+        cache_key = f"scrape:{uri}"
+        cached = self._cache_get(cache_key, ttl=self.SCRAPE_CACHE_TTL)
+        if cached is not None:
+            return cached
         headers = {"User-Agent": self.ua_str}
         if self.identity:
             headers["Cookie"] = f"identity={self.identity}"
@@ -120,11 +189,16 @@ class BandcampClient:
             tralbum["tracks"] = tralbum["trackinfo"]
             tralbum["tralbum_artist"] = tralbum["artist"]
             tralbum["num_downloadable_tracks"] = None
+        self._cache_put(cache_key, tralbum)
         return tralbum
 
     def get_collection(self, token=None, ctype="collection"):
         if not self.identity:
             return []
+        cache_key = f"collection:{ctype}:{token or 'first'}"
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         headers = {"User-Agent": self.ua_str, "Cookie": f"identity={self.identity}"}
         if self.fan_id is None:
             resp = requests.get(
@@ -155,9 +229,14 @@ class BandcampClient:
         js = resp.json()
         if "error" in js:
             raise RuntimeError(js["error_message"])  # pragma: no cover
+        self._cache_put(cache_key, js)
         return js
 
     def get_album(self, artistid, itemid, track=False):
+        cache_key = f"album:{artistid}:{itemid}:{track}"
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         js = self._get(
             self.BASE_URL
             + "/mobile/24/tralbum_details?band_id="
@@ -167,6 +246,7 @@ class BandcampClient:
             + "&tralbum_id="
             + str(itemid)
         )
+        self._cache_put(cache_key, js)
         return js
 
     def get_track(self, artistid, trackid):
