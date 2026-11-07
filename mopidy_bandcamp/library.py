@@ -448,10 +448,10 @@ class BandcampLibraryProvider(backend.LibraryProvider):
                     comment = ""
                     if "url" in r:
                         comment = "URL: " + r["url"]
-                    if "art_id" in r:
-                        self.images[
-                            f"bandcamp:track:{r['band_id']}-{r['album_id']}-{r['id']}"
-                        ] = f"a{r['art_id']:010d}"
+                    if r.get("art_id"):
+                        art = f"a{r['art_id']:010d}"
+                        self.images[f"{r['band_id']}-{r['album_id']}-{r['id']}"] = art
+                        self.images.setdefault(f"{r['band_id']}-{r['album_id']}", art)
                     trref = Track(
                         uri=f"bandcamp:track:{r['band_id']}-{r['album_id']}-{r['id']}",
                         name=r["name"],
@@ -471,6 +471,8 @@ class BandcampLibraryProvider(backend.LibraryProvider):
                     )
                     tracks.add(trref)
                 elif r["type"] == "a":
+                    if r.get("art_id"):
+                        self.images[f"{r['band_id']}-{r['id']}"] = f"a{r['art_id']:010d}"
                     artref = Artist(
                         uri=f"bandcamp:artist:{r['band_id']}",
                         name=r["band_name"],
@@ -488,6 +490,8 @@ class BandcampLibraryProvider(backend.LibraryProvider):
                     )
                     albums.add(albref)
                 elif r["type"] == "b":
+                    if r.get("img_id"):
+                        self.images[str(r["id"])] = f"{r['img_id']:010d}"
                     artref = Artist(
                         uri=f"bandcamp:artist:{r['id']}",
                         name=r["name"],
